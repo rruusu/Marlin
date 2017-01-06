@@ -46,6 +46,12 @@
     #define DEFAULT_LCD_CONTRAST 17
   #endif
 
+  #if ENABLED(ANET_KEYPAD_LCD)
+    #define REPRAPWORLD_KEYPAD
+    #define REPRAPWORLD_KEYPAD_MOVE_STEP 10.0
+    #define ADC_KEYPAD
+  #endif
+
   #if ENABLED(miniVIKI) || ENABLED(VIKI2) || ENABLED(ELB_FULL_GRAPHIC_CONTROLLER)
     #define ULTRA_LCD  //general LCD support, also 16x2
     #define DOGLCD  // Support for SPI LCD 128x64 (Controller ST7565R graphic Display Family)
@@ -84,7 +90,7 @@
     #endif
   #endif
 
-  #if ENABLED(REPRAP_DISCOUNT_FULL_GRAPHIC_SMART_CONTROLLER)
+  #if ENABLED(REPRAP_DISCOUNT_FULL_GRAPHIC_SMART_CONTROLLER) || ENABLED(ANET_FULL_GRAPHICS_LCD)
     #define DOGLCD
     #define U8GLIB_ST7920
     #define REPRAP_DISCOUNT_SMART_CONTROLLER
