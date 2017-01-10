@@ -4843,7 +4843,7 @@ void home_all_axes() { gcode_G28(true); }
             NOMORE(min_diff, eqnBVector[ind] - z_tmp);
 
             if (diff >= 0.0)
-              SERIAL_PROTOCOLPGM(" +");   // Include + for column alignment
+              SERIAL_PROTOCOLPGM("  ");   // Include + for column alignment
             else
               SERIAL_PROTOCOLCHAR(' ');
             SERIAL_PROTOCOL_F(diff, 5);
@@ -4866,7 +4866,7 @@ void home_all_axes() { gcode_G28(true); }
 
               float diff = eqnBVector[ind] - z_tmp - min_diff;
               if (diff >= 0.0)
-                SERIAL_PROTOCOLPGM(" +");
+                SERIAL_PROTOCOLPGM("  ");
               // Include + for column alignment
               else
                 SERIAL_PROTOCOLCHAR(' ');
