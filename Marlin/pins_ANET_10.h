@@ -67,11 +67,24 @@
 	#elif ENABLED(U8GLIB_ST7920)
 		#undef BEEPER_PIN
 
+	#if ENABLED(REPRAP_DISCOUNT_FULL_GRAPHIC_SMART_CONTROLLER)
+		// For RepRap Discount (with Anet Adapter wiring)
+		#define SERVO0_PIN        27 // free for BLTouch/3D-Touch
+		#define BEEPER_PIN        28
+		#define LCD_PINS_RS       30
+		#define	LCD_PINS_ENABLE   29
+		#define LCD_PINS_D4       17
+		#define BTN_EN1               11
+		#define BTN_EN2               10
+	#elif ENABLED(ANET_FULL_GRAPHICS_LCD)
 		#define BEEPER_PIN 17
 
 		#define LCD_PINS_RS        27
 		#define LCD_PINS_ENABLE    28
 		#define LCD_PINS_D4        30
+	#else
+		#error "You need to select ANET or RepRap Version"
+	#endif
 
 		#define ST7920_DELAY_1 DELAY_0_NOP
 		#define ST7920_DELAY_2 DELAY_1_NOP
