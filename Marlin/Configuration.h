@@ -297,9 +297,25 @@
 // PID Tuning Guide here: http://reprap.org/wiki/PID_Tuning
 
 // Comment the following line to disable PID and enable bang-bang.
-#define PIDTEMP
+//#define PIDTEMP
+#define SMTEMP
+#define SM_DEBUG
 #define BANG_MAX 255 // limits current to nozzle while in bang-bang mode; 255=full current
 #define PID_MAX BANG_MAX // limits current to nozzle while PID is active (see PID_FUNCTIONAL_RANGE below); 255=full current
+
+#if ENABLED(SMTEMP)
+  // ANET A8 Standard Extruder
+  // Sliding mode controller params
+  #define  DEFAULT_L 0.25
+  #define  DEFAULT_K 128
+  #define  DEFAULT_epsilon 1.1
+  #define  DEFAULT_tau 20.0
+  #define  DEFAULT_T 8.0
+  #define  DEFAULT_Q 2.3
+  
+  #define PID_FUNCTIONAL_RANGE 80 // If the temperature difference between the target temperature and the actual temperature
+#endif
+
 #if ENABLED(PIDTEMP)
   //#define PID_AUTOTUNE_MENU // Add PID Autotune to the LCD "Temperature" menu to run M303 and apply the result.
   //#define PID_DEBUG // Sends debug data to the serial port.

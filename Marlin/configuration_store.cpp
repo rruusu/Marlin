@@ -36,7 +36,7 @@
  *
  */
 
-#define EEPROM_VERSION "V38"
+#define EEPROM_VERSION "S38"
 
 // Change EEPROM version if these are changed:
 #define EEPROM_OFFSET 100
@@ -156,8 +156,15 @@
  *  580  M900 K    extruder_advance_k               (float)
  *  584  M900 WHD  advance_ed_ratio                 (float)
  *
- *  588                                Minimum end-point
- * 1909 (588 + 36 + 9 + 288 + 988)     Maximum end-point
+ * Sliding mode controller:
+ *  588       E0   L, K, epsilon, tau, T, Q         (float x6)
+ *  612       E1   L, K, epsilon, tau, T, Q         (float x6)
+ *  636       E2   L, K, epsilon, tau, T, Q         (float x6)
+ *  660       E3   L, K, epsilon, tau, T, Q         (float x6)
+ *  684       E4   L, K, epsilon, tau, T, Q         (float x6)
+ * 
+ *  708                                Minimum end-point
+ * 2029 (708 + 36 + 9 + 288 + 988)     Maximum end-point
  *
  * ========================================================================
  * meshes_begin (between max and min end-point, directly above)
@@ -626,6 +633,32 @@ void MarlinSettings::postprocess() {
       EEPROM_WRITE(dummy);
     #endif
 
+    //
+    // Sliding mode control
+    //
+
+    for (uint8_t e = 0; e < MAX_EXTRUDERS; e++) {
+
+      #if ENABLED(SMTEMP)
+        if (e < HOTENDS) {
+          EEPROM_WRITE(SM_PARAM(L, e));
+          EEPROM_WRITE(SM_PARAM(K, e));
+          EEPROM_WRITE(SM_PARAM(epsilon, e));
+          EEPROM_WRITE(SM_PARAM(tau, e));
+          EEPROM_WRITE(SM_PARAM(T, e));
+          EEPROM_WRITE(SM_PARAM(Q, e));
+        }
+        else
+      #endif // !SMTEMP
+        {
+          dummy = DUMMY_PID_VALUE; // When read, will not change the existing value
+          EEPROM_WRITE(dummy); // L
+          dummy = 0.0f;
+          for (uint8_t q = 5; q--;) EEPROM_WRITE(dummy); // K, epsilon, tau, T, Q
+        }
+
+    } // Hotends Loop
+
     if (!eeprom_error) {
       const int eeprom_size = eeprom_index;
 
@@ -979,6 +1012,26 @@ void MarlinSettings::postprocess() {
         EEPROM_READ(dummy);
       #endif
 
+      #if ENABLED(SMTEMP)
+        for (uint8_t e = 0; e < MAX_EXTRUDERS; e++) {
+          EEPROM_READ(dummy); // L
+          if (e < HOTENDS && dummy != DUMMY_PID_VALUE) {
+            SM_PARAM(L, e) = dummy;
+            EEPROM_READ(SM_PARAM(K, e));
+            EEPROM_READ(SM_PARAM(epsilon, e));
+            EEPROM_READ(SM_PARAM(tau, e));
+            EEPROM_READ(SM_PARAM(T, e));
+            EEPROM_READ(SM_PARAM(Q, e));
+          }
+          else {
+            for (uint8_t q=5; q--;) EEPROM_READ(dummy); // L, K, epsilon, tau, T, Q
+          }
+        }
+      #else // !SMTEMP
+        // 5 x 6 = 30 slots for SMC parameters
+        for (uint8_t q = MAX_EXTRUDERS * 5; q--;) EEPROM_READ(dummy);  // L, K, epsilon, tau, T, Q
+      #endif // !SMTEMP
+
       if (working_crc == stored_crc) {
           postprocess();
           SERIAL_ECHO_START;
@@ -1230,6 +1283,20 @@ void MarlinSettings::reset() {
     #if ENABLED(PID_EXTRUSION_SCALING)
       lpq_len = 20; // default last-position-queue size
     #endif
+  #endif // PIDTEMP
+
+  #if ENABLED(SMTEMP)
+    #if ENABLED(PID_PARAMS_PER_HOTEND) && HOTENDS > 1
+      HOTEND_LOOP()
+    #endif
+    {
+      SM_PARAM(L, e) = DEFAULT_L;
+      SM_PARAM(K, e) = DEFAULT_K;
+      SM_PARAM(epsilon, e) = DEFAULT_epsilon;
+      SM_PARAM(tau, e) = DEFAULT_tau;
+      SM_PARAM(T, e) = DEFAULT_T;
+      SM_PARAM(Q, e) = DEFAULT_Q;
+    }
   #endif // PIDTEMP
 
   #if ENABLED(PIDTEMPBED)

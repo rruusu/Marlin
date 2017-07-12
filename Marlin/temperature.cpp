@@ -73,6 +73,24 @@ int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
   int16_t Temperature::target_temperature_bed = 0;
 #endif
 
+#if ENABLED(SMTEMP)
+  #if ENABLED(PID_PARAMS_PER_HOTEND) && HOTENDS > 1
+    float Temperature::L[HOTENDS] = ARRAY_BY_HOTENDS1(DEFAULT_L),
+          Temperature::K[HOTENDS] = ARRAY_BY_HOTENDS1(DEFAULT_K),
+          Temperature::epsilon[HOTENDS] = ARRAY_BY_HOTENDS1(DEFAULT_epsilon),
+          Temperature::tau[HOTENDS] = ARRAY_BY_HOTENDS1(DEFAULT_tau),
+          Temperature::T[HOTENDS] = ARRAY_BY_HOTENDS1(DEFAULT_T),
+          Temperature::Q[HOTENDS] = ARRAY_BY_HOTENDS1(DEFAULT_Q);
+  #else
+    float Temperature::L = DEFAULT_L,
+          Temperature::K = DEFAULT_K,
+          Temperature::epsilon = (DEFAULT_epsilon),
+          Temperature::tau = (DEFAULT_tau),
+          Temperature::T = (DEFAULT_T),
+          Temperature::Q = (DEFAULT_Q);
+  #endif
+#endif
+
 #if ENABLED(PIDTEMP)
   #if ENABLED(PID_PARAMS_PER_HOTEND) && HOTENDS > 1
     float Temperature::Kp[HOTENDS] = ARRAY_BY_HOTENDS1(DEFAULT_Kp),
@@ -124,6 +142,20 @@ int16_t Temperature::current_temperature_raw[HOTENDS] = { 0 },
 #endif
 
 volatile bool Temperature::temp_meas_ready = false;
+
+#if ENABLED(SMTEMP)
+  float Temperature::z1[HOTENDS] = { 0 },
+        Temperature::z2[HOTENDS] = { 0 },
+        Temperature::z3[HOTENDS] = { 0 },
+        Temperature::sigma[HOTENDS],
+        Temperature::sigma2[HOTENDS],
+        Temperature::u[HOTENDS] = { 0 },
+        Temperature::ueq[HOTENDS] = { 0 },
+        Temperature::veq[HOTENDS] = { 0 };
+
+  float Temperature::pid_error[HOTENDS];
+  bool Temperature::pid_reset[HOTENDS];
+#endif
 
 #if ENABLED(PIDTEMP)
   float Temperature::temp_iState[HOTENDS] = { 0 },
@@ -550,6 +582,18 @@ void Temperature::min_temp_error(int8_t e) {
   #endif
 }
 
+static float sign(float v) {
+  return (float)((v > 0) - (v < 0));
+}
+
+static float ssqrt(float v) {
+  return v < 0 ? -sqrt(-v) : sqrt(v);
+}
+
+static float spow(float v, float exp) {
+  return v < 0 ? -pow(-v, exp) : pow(v, exp);
+}
+
 float Temperature::get_pid_output(int e) {
   #if HOTENDS == 1
     UNUSED(e);
@@ -557,8 +601,76 @@ float Temperature::get_pid_output(int e) {
   #else
     #define _HOTEND_TEST     e == active_extruder
   #endif
-  float pid_output;
-  #if ENABLED(PIDTEMP)
+  #if ENABLED(SMTEMP)
+    float pid_output, v0, v1, v2, v3, dz;
+    int i;
+    if (pid_reset[HOTEND_INDEX]) {
+      z1[HOTEND_INDEX] = current_temperature[HOTEND_INDEX];
+      z2[HOTEND_INDEX] = 0.0;
+      z3[HOTEND_INDEX] = 0.0;
+      u[HOTEND_INDEX] = 0.0;
+      pid_reset[HOTEND_INDEX] = false;
+    }
+
+    if (z1[HOTEND_INDEX] == 0)
+      z1[HOTEND_INDEX] = current_temperature[HOTEND_INDEX];
+
+    for (i = 0; i < 16; i++) {
+      v0 = z1[HOTEND_INDEX] - current_temperature[HOTEND_INDEX];
+      v1 = 1.5 * sqrt(SM_PARAM(L, HOTEND_INDEX)) * ssqrt(v0);
+      v2 = 1.1 * SM_PARAM(L, HOTEND_INDEX) * sign(v0);
+      z1[HOTEND_INDEX] += PID_dT/16 * (z2[HOTEND_INDEX] + z3[HOTEND_INDEX] - v1 - 0.5 * (PID_dT/16) * v2);
+      z2[HOTEND_INDEX] += PID_dT/16 * (SM_PARAM(Q, HOTEND_INDEX) * ueq[HOTEND_INDEX] / PID_MAX - z2[HOTEND_INDEX]) / SM_PARAM(T, HOTEND_INDEX);
+      z3[HOTEND_INDEX] -= PID_dT/16 * v2;
+    }
+    
+    pid_error[HOTEND_INDEX] = z1[HOTEND_INDEX] - target_temperature[HOTEND_INDEX];
+
+    if (pid_error[HOTEND_INDEX] < -PID_FUNCTIONAL_RANGE) {
+      pid_output = BANG_MAX;
+      veq[HOTEND_INDEX] = PID_MAX;
+      ueq[HOTEND_INDEX] = PID_MAX;
+    }
+    else if (pid_error[HOTEND_INDEX] > PID_FUNCTIONAL_RANGE || target_temperature[HOTEND_INDEX] == 0) {
+      pid_output = 0;
+      veq[HOTEND_INDEX] = 0;
+      ueq[HOTEND_INDEX] = 0;
+    }
+    else {
+      sigma2[HOTEND_INDEX] = SM_PARAM(tau, HOTEND_INDEX) * (z2[HOTEND_INDEX] + z3[HOTEND_INDEX]);
+      sigma[HOTEND_INDEX] = pid_error[HOTEND_INDEX] + sigma2[HOTEND_INDEX];
+      sigma[HOTEND_INDEX] -= max(-SM_PARAM(epsilon, HOTEND_INDEX), min(SM_PARAM(epsilon, HOTEND_INDEX), sigma[HOTEND_INDEX]));
+      sigma[HOTEND_INDEX] = sigma[HOTEND_INDEX] / (fabs(pid_error[HOTEND_INDEX]) + fabs(sigma2[HOTEND_INDEX]) + SM_PARAM(epsilon, HOTEND_INDEX));
+      u[HOTEND_INDEX] = veq[HOTEND_INDEX] - SM_PARAM(K, HOTEND_INDEX) * sigma[HOTEND_INDEX];
+      u[HOTEND_INDEX] = max(0, min(PID_MAX, u[HOTEND_INDEX]));
+      veq[HOTEND_INDEX] += PID_dT * (-veq[HOTEND_INDEX] + u[HOTEND_INDEX]) / (SM_PARAM(tau, HOTEND_INDEX) / 2);
+      ueq[HOTEND_INDEX] += PID_dT * (-ueq[HOTEND_INDEX] + u[HOTEND_INDEX]) / 0.125;
+  
+      pid_output = ueq[HOTEND_INDEX];
+      
+      if (pid_output > PID_MAX) {
+        pid_output = PID_MAX;
+      }
+      else if (pid_output < 0) {
+        pid_output = 0;
+      }
+    }
+    
+    #if ENABLED(SM_DEBUG)
+      SERIAL_ECHO_START;
+      SERIAL_ECHOPAIR(MSG_SM_DEBUG, HOTEND_INDEX);
+      SERIAL_ECHOPAIR(MSG_SM_DEBUG_INPUT, current_temperature[HOTEND_INDEX]);
+      SERIAL_ECHOPAIR(MSG_SM_DEBUG_OUTPUT, pid_output);
+      SERIAL_ECHOPAIR(MSG_SM_DEBUG_Z1, z1[HOTEND_INDEX]);
+      SERIAL_ECHOPAIR(MSG_SM_DEBUG_Z2, z2[HOTEND_INDEX]);
+      SERIAL_ECHOPAIR(MSG_SM_DEBUG_Z3, z3[HOTEND_INDEX]);
+      SERIAL_ECHOPAIR(MSG_SM_DEBUG_SIGMA, sigma[HOTEND_INDEX]);
+      SERIAL_ECHOPAIR(MSG_SM_DEBUG_SIGMA2, sigma2[HOTEND_INDEX]);
+      SERIAL_EOL;
+    #endif //PID_DEBUG
+
+  #elif ENABLED(PIDTEMP)
+  	float pid_output;
     #if DISABLED(PID_OPENLOOP)
       pid_error[HOTEND_INDEX] = target_temperature[HOTEND_INDEX] - current_temperature[HOTEND_INDEX];
       dTerm[HOTEND_INDEX] = K2 * PID_PARAM(Kd, HOTEND_INDEX) * (current_temperature[HOTEND_INDEX] - temp_dState[HOTEND_INDEX]) + K1 * dTerm[HOTEND_INDEX];

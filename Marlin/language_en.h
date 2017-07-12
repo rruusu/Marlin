@@ -376,6 +376,24 @@
 #ifndef MSG_PID_C
   #define MSG_PID_C                           _UxGT("PID-C")
 #endif
+#ifndef MSG_SM_L
+  #define MSG_SM_L                            _UxGT("SMC-L")
+#endif
+#ifndef MSG_SM_K
+  #define MSG_SM_K                            _UxGT("SMC-K")
+#endif
+#ifndef MSG_SM_EPS
+  #define MSG_SM_EPS                          _UxGT("SMC-Epsilon")
+#endif
+#ifndef MSG_SM_TAU
+  #define MSG_SM_TAU                          _UxGT("SMC-Tau")
+#endif
+#ifndef MSG_SM_T
+  #define MSG_SM_T                            _UxGT("SMC-T")
+#endif
+#ifndef MSG_SM_Q
+  #define MSG_SM_Q                            _UxGT("SMC-Q")
+#endif
 #ifndef MSG_SELECT
   #define MSG_SELECT                          _UxGT("Select")
 #endif

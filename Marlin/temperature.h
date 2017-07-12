@@ -92,7 +92,7 @@ enum ADCSensorState {
 // Minimum number of Temperature::ISR loops between sensor readings.
 // Multiplied by 16 (OVERSAMPLENR) to obtain the total time to
 // get all oversampled sensor readings
-#define MIN_ADC_ISR_LOOPS 10
+#define MIN_ADC_ISR_LOOPS 2
 
 #define ACTUAL_ADC_SAMPLES max(int(MIN_ADC_ISR_LOOPS), int(SensorsReady))
 
@@ -124,8 +124,24 @@ class Temperature {
                      soft_pwm_count_fan[FAN_COUNT];
     #endif
 
-    #if ENABLED(PIDTEMP) || ENABLED(PIDTEMPBED)
+    #if ENABLED(PIDTEMP) || ENABLED(PIDTEMPBED) || ENABLED(SMTEMP)
       #define PID_dT ((OVERSAMPLENR * float(ACTUAL_ADC_SAMPLES)) / (F_CPU / 64.0 / 256.0))
+    #endif
+
+    #if ENABLED(SMTEMP)
+    
+      #if ENABLED(PID_PARAMS_PER_HOTEND) && HOTENDS > 1
+
+        static float L[HOTENDS], K[HOTENDS], epsilon[HOTENDS], tau[HOTENDS], T[HOTENDS], Q[HOTENDS];
+        #define SM_PARAM(param, h) Temperature::param[h]
+
+      #else
+
+        static float L, K, epsilon, tau, T, Q;
+        #define SM_PARAM(param, h) Temperature::param
+
+      #endif // PID_PARAMS_PER_HOTEND
+      
     #endif
 
     #if ENABLED(PIDTEMP)
@@ -196,6 +212,20 @@ class Temperature {
 
     static volatile bool temp_meas_ready;
 
+    #if ENABLED(SMTEMP)
+      static float z1[HOTENDS],
+                   z2[HOTENDS],
+                   z3[HOTENDS],
+                   sigma[HOTENDS],
+                   sigma2[HOTENDS],
+                   u[HOTENDS],
+                   ueq[HOTENDS],
+                   veq[HOTENDS];
+
+      static float pid_error[HOTENDS];
+      static bool pid_reset[HOTENDS];
+    #endif
+      
     #if ENABLED(PIDTEMP)
       static float temp_iState[HOTENDS],
                    temp_dState[HOTENDS],
@@ -345,9 +375,24 @@ class Temperature {
       #if HOTENDS == 1
         UNUSED(e);
       #endif
-      return current_temperature[HOTEND_INDEX];
+      #if ENABLED(SMTEMP)
+        return z1[HOTEND_INDEX] + 0.5f;
+      #else
+        return current_temperature[HOTEND_INDEX] + 0.5f;
+      #endif
     }
-    static float degBed() { return current_temperature_bed; }
+    static int16_t decHotend(uint8_t e) {
+      #if HOTENDS == 1
+        UNUSED(e);
+      #endif
+      #if ENABLED(SMTEMP)
+        return 100 * z1[HOTEND_INDEX] + 0.5f;
+      #else
+        return 100 * current_temperature[HOTEND_INDEX] + 0.5f;
+      #endif
+    }
+    
+    static int16_t degBed() { return current_temperature_bed + 0.5f; }
 
     #if ENABLED(SHOW_TEMP_ADC_VALUES)
       static int16_t rawHotendTemp(uint8_t e) {

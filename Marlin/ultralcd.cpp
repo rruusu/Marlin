@@ -2793,7 +2793,33 @@ void kill_screen(const char* lcd_msg) {
     // PID-P E4, PID-I E4, PID-D E4, PID-C E4, PID Autotune E4
     // PID-P E5, PID-I E5, PID-D E5, PID-C E5, PID Autotune E5
     //
-    #if ENABLED(PIDTEMP)
+    #if ENABLED(SMTEMP)
+      
+      #define SM_MENU_ITEMS(ELABEL, eindex) \
+        MENU_ITEM_EDIT(float52, MSG_SM_L ELABEL, &SM_PARAM(L, eindex), 0.01, 9990); \
+        MENU_ITEM_EDIT(float52, MSG_SM_K ELABEL, &SM_PARAM(K, eindex), 0.1, 9990); \
+        MENU_ITEM_EDIT(float52, MSG_SM_EPS ELABEL, &SM_PARAM(epsilon, eindex), 0.01, 9990); \
+        MENU_ITEM_EDIT(float52, MSG_SM_TAU ELABEL, &SM_PARAM(tau, eindex), 0.1, 9990); \
+        MENU_ITEM_EDIT(float52, MSG_SM_T ELABEL, &SM_PARAM(T, eindex), 0.1, 9990); \
+        MENU_ITEM_EDIT(float52, MSG_SM_Q ELABEL, &SM_PARAM(Q, eindex), 0.01, 9990);
+        
+      #if ENABLED(PID_PARAMS_PER_HOTEND) && HOTENDS > 1
+        SM_MENU_ITEMS(" " MSG_E1, 0);
+        SM_MENU_ITEMS(" " MSG_E2, 1);
+        #if HOTENDS > 2
+          SM_MENU_ITEMS(" " MSG_E3, 2);
+          #if HOTENDS > 3
+            SM_MENU_ITEMS(" " MSG_E4, 3);
+            #if HOTENDS > 4
+              SM_MENU_ITEMS(" " MSG_E5, 4);
+            #endif // HOTENDS > 4
+          #endif // HOTENDS > 3
+        #endif // HOTENDS > 2
+      #else // !PID_PARAMS_PER_HOTEND || HOTENDS == 1
+        SM_MENU_ITEMS("", 0);
+      #endif // !PID_PARAMS_PER_HOTEND || HOTENDS == 1
+      
+    #elif ENABLED(PIDTEMP)
 
       #define _PID_BASE_MENU_ITEMS(ELABEL, eindex) \
         raw_Ki = unscalePID_i(PID_PARAM(Ki, eindex)); \
