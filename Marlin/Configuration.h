@@ -307,11 +307,11 @@
   // ANET A8 Standard Extruder
   // Sliding mode controller params
   #define  DEFAULT_L 0.25
-  #define  DEFAULT_K 128
+  #define  DEFAULT_K 180
   #define  DEFAULT_epsilon 1.1
   #define  DEFAULT_tau 20.0
   #define  DEFAULT_T 8.0
-  #define  DEFAULT_Q 2.3
+  #define  DEFAULT_Q 2.5
   
   #define PID_FUNCTIONAL_RANGE 80 // If the temperature difference between the target temperature and the actual temperature
 #endif
