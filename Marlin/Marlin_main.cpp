@@ -6919,9 +6919,14 @@ inline void gcode_M104() {
 #if HAS_TEMP_HOTEND || HAS_TEMP_BED
 
   void print_heaterstates() {
+    int16_t t;
     #if HAS_TEMP_HOTEND
       SERIAL_PROTOCOLPGM(" T:");
-      SERIAL_PROTOCOL(thermalManager.degHotend(target_extruder));
+      t = thermalManager.decHotend(target_extruder);
+      SERIAL_PROTOCOL(t/100);
+      SERIAL_PROTOCOLPGM(".");
+      SERIAL_PROTOCOL(t/10%10);
+      SERIAL_PROTOCOL(t%10);
       SERIAL_PROTOCOLPGM(" /");
       SERIAL_PROTOCOL(thermalManager.degTargetHotend(target_extruder));
       #if ENABLED(SHOW_TEMP_ADC_VALUES)

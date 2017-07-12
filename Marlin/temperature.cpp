@@ -643,8 +643,9 @@ float Temperature::get_pid_output(int e) {
       sigma[HOTEND_INDEX] = sigma[HOTEND_INDEX] / (fabs(pid_error[HOTEND_INDEX]) + fabs(sigma2[HOTEND_INDEX]) + SM_PARAM(epsilon, HOTEND_INDEX));
       u[HOTEND_INDEX] = veq[HOTEND_INDEX] - SM_PARAM(K, HOTEND_INDEX) * sigma[HOTEND_INDEX];
       u[HOTEND_INDEX] = max(0, min(PID_MAX, u[HOTEND_INDEX]));
-      veq[HOTEND_INDEX] += PID_dT * (-veq[HOTEND_INDEX] + u[HOTEND_INDEX]) / (SM_PARAM(tau, HOTEND_INDEX) / 2);
-      ueq[HOTEND_INDEX] += PID_dT * (-ueq[HOTEND_INDEX] + u[HOTEND_INDEX]) / 0.125;
+      veq[HOTEND_INDEX] += PID_dT * (u[HOTEND_INDEX] - veq[HOTEND_INDEX]) / (SM_PARAM(tau, HOTEND_INDEX) / 2);
+      u[HOTEND_INDEX] += (z2[HOTEND_INDEX] - SM_PARAM(T, HOTEND_INDEX) * (z2[HOTEND_INDEX] + z3[HOTEND_INDEX]) / SM_PARAM(tau, HOTEND_INDEX)) / SM_PARAM(Q, HOTEND_INDEX);
+      ueq[HOTEND_INDEX] += PID_dT * (u[HOTEND_INDEX] - ueq[HOTEND_INDEX]) / 0.125;
   
       pid_output = ueq[HOTEND_INDEX];
       

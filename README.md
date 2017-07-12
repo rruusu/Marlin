@@ -11,25 +11,30 @@ The controller uses a super-twisting observer to estimate the value and rate of 
 of the resistor:
 
 ~~~
-z1' = z2 + z3 - 1.1 * sqrt(L) * sqrt(abs(z1 - y)) * sign(z1 - y)
-z2' = -1.5 * L * sign(z1 - y)
-z3' = (Q*u - z3)/T
+z1' = z2 + z3 - 1.5 * sqrt(L) * sqrt(abs(z1 - y)) * sign(z1 - y)
+z2' = (Q*u - z3)/T
+z3' = -1.1 * L * sign(z1 - y)
 ~~~
 
-@z1@ is an estimate of the current temperature. @z2@ is an estimate of the rate of change due to heat evaporation. @z3@ is an estimate
-of the rate of change due to the heater.
+`z1` is an estimate of the current temperature. `z2` is an estimate
+of the rate of change due to the heater. `z3` is an estimate of the rate of change due to heat losses.
 
 The controller itself is a first order quasi-continuous controller with a control law:
 
 ~~~
+sigma0 = z1 - yref + tau * (z2 + z3)
+sigma = sigma0 - max(-epsilon, min(epsilon, sigma0))
+v = veq - K * sigma / (abs(z1-yref) + tau*abs(z2+z3) + epsilon)
 veq' = (v - veq)/(tau/4)
-v = veq - K * ((z1-yref) + tau*(z2+z3)) / (abs(z1-yref) + tau*abs(z2+z3) + epsilon)
-ueq = (z3 - T*(z2 + z3)/tau)/Q
+ueq = (z2 - T*(z2 + z3)/tau)/Q
 u = ueq + v
 ~~~
 
-Additionally, a dead zone with the size of @epsilon@ is used (@u = u - max(-epsilon,min(epsilon,u))@), and the results is low-pass filtered
-with time constant 0.125 s, in order to avoid flickering that is faster than the pulse rate of the heater.
+Additionally, the results are low-pass filtered with time constant 0.125 s, in order to avoid flickering that is faster than the pulse rate of the heater.
+
+Belows is a plot of the controller cancelling a very bad cooling fan that blows directly into the heating block.
+
+<img src="../../raw/1.1.x/buildroot/share/pixmaps/blower.png" />
 
 ## Marlin 1.1
 
