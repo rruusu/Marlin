@@ -32,9 +32,9 @@ u = ueq + v
 
 Additionally, the results are low-pass filtered with time constant 0.125 s, in order to avoid flickering that is faster than the pulse rate of the heater.
 
-Belows is a plot of the controller cancelling a very bad cooling fan that blows directly into the heating block.
+Below is a plot of the controller cancelling a very bad cooling fan that blows directly into the heating block.
 
-<img src="../../raw/1.1.x/buildroot/share/pixmaps/blower.png" />
+<img src="buildroot/share/pixmaps/blower.png" />
 
 ## Marlin 1.1
 
