@@ -606,29 +606,32 @@ float Temperature::get_pid_output(int e) {
     int i;
     if (pid_reset[HOTEND_INDEX]) {
       z1[HOTEND_INDEX] = current_temperature[HOTEND_INDEX];
-      z2[HOTEND_INDEX] = 0.0;
+      z2[HOTEND_INDEX] = current_temperature[HOTEND_INDEX];
       z3[HOTEND_INDEX] = 0.0;
       u[HOTEND_INDEX] = 0.0;
       pid_reset[HOTEND_INDEX] = false;
     }
 
-    if (z1[HOTEND_INDEX] == 0)
+    if (z1[HOTEND_INDEX] == 0) {
       z1[HOTEND_INDEX] = current_temperature[HOTEND_INDEX];
+      z2[HOTEND_INDEX] = current_temperature[HOTEND_INDEX];
+    }
 
     for (i = 0; i < 16; i++) {
       v0 = z1[HOTEND_INDEX] - current_temperature[HOTEND_INDEX];
       v1 = 1.5 * sqrt(SM_PARAM(L, HOTEND_INDEX)) * ssqrt(v0);
       v2 = 1.1 * SM_PARAM(L, HOTEND_INDEX) * sign(v0);
-      z1[HOTEND_INDEX] += PID_dT/16 * (z2[HOTEND_INDEX] + z3[HOTEND_INDEX] - v1 - 0.5 * (PID_dT/16) * v2);
-      z2[HOTEND_INDEX] += PID_dT/16 * (SM_PARAM(Q, HOTEND_INDEX) * ueq[HOTEND_INDEX] / PID_MAX - z2[HOTEND_INDEX]) / SM_PARAM(T, HOTEND_INDEX);
-      z3[HOTEND_INDEX] -= PID_dT/16 * v2;
+      v3 = (z2[HOTEND_INDEX] - z1[HOTEND_INDEX])/SM_PARAM(T, HOTEND_INDEX);
+      z1[HOTEND_INDEX] += PID_dT/16 * (v3 + z3[HOTEND_INDEX] - v1 - 0.5 * (PID_dT/16) * v2);
+      z2[HOTEND_INDEX] += PID_dT/16 * (SM_PARAM(Q, HOTEND_INDEX) * ueq[HOTEND_INDEX] / PID_MAX - v3 - 0.1 * SM_PARAM(T, HOTEND_INDEX) * v2);
+      z3[HOTEND_INDEX] -= PID_dT/16 * v2 * 0.9;
     }
     
     pid_error[HOTEND_INDEX] = z1[HOTEND_INDEX] - target_temperature[HOTEND_INDEX];
 
     if (pid_error[HOTEND_INDEX] < -PID_FUNCTIONAL_RANGE) {
       pid_output = BANG_MAX;
-      veq[HOTEND_INDEX] = PID_MAX;
+      veq[HOTEND_INDEX] = 0;
       ueq[HOTEND_INDEX] = PID_MAX;
     }
     else if (pid_error[HOTEND_INDEX] > PID_FUNCTIONAL_RANGE || target_temperature[HOTEND_INDEX] == 0) {
@@ -637,15 +640,16 @@ float Temperature::get_pid_output(int e) {
       ueq[HOTEND_INDEX] = 0;
     }
     else {
-      sigma2[HOTEND_INDEX] = SM_PARAM(tau, HOTEND_INDEX) * (z2[HOTEND_INDEX] + z3[HOTEND_INDEX]);
+      v3 = (z2[HOTEND_INDEX] - z1[HOTEND_INDEX]) / SM_PARAM(T, HOTEND_INDEX);
+      sigma2[HOTEND_INDEX] = SM_PARAM(tau, HOTEND_INDEX) * ((z2[HOTEND_INDEX] - z1[HOTEND_INDEX])/SM_PARAM(T, HOTEND_INDEX) + z3[HOTEND_INDEX]);
       sigma[HOTEND_INDEX] = pid_error[HOTEND_INDEX] + sigma2[HOTEND_INDEX];
       sigma[HOTEND_INDEX] -= max(-SM_PARAM(epsilon, HOTEND_INDEX), min(SM_PARAM(epsilon, HOTEND_INDEX), sigma[HOTEND_INDEX]));
       sigma[HOTEND_INDEX] = sigma[HOTEND_INDEX] / (fabs(pid_error[HOTEND_INDEX]) + fabs(sigma2[HOTEND_INDEX]) + SM_PARAM(epsilon, HOTEND_INDEX));
-      u[HOTEND_INDEX] = veq[HOTEND_INDEX] - SM_PARAM(K, HOTEND_INDEX) * sigma[HOTEND_INDEX];
+      u[HOTEND_INDEX] = -SM_PARAM(K, HOTEND_INDEX) * sigma[HOTEND_INDEX];
+      u[HOTEND_INDEX] += PID_MAX * (v3 - (v3 + z3[HOTEND_INDEX]) / tau) / SM_PARAM(Q, HOTEND_INDEX);
       u[HOTEND_INDEX] = max(0, min(PID_MAX, u[HOTEND_INDEX]));
-      veq[HOTEND_INDEX] += PID_dT * (u[HOTEND_INDEX] - veq[HOTEND_INDEX]) / (SM_PARAM(tau, HOTEND_INDEX) / 2);
-      u[HOTEND_INDEX] += (z2[HOTEND_INDEX] - SM_PARAM(T, HOTEND_INDEX) * (z2[HOTEND_INDEX] + z3[HOTEND_INDEX]) / SM_PARAM(tau, HOTEND_INDEX)) / SM_PARAM(Q, HOTEND_INDEX);
       ueq[HOTEND_INDEX] += PID_dT * (u[HOTEND_INDEX] - ueq[HOTEND_INDEX]) / 0.125;
+      ueq[HOTEND_INDEX] = max(0, min(PID_MAX, ueq[HOTEND_INDEX]));
   
       pid_output = ueq[HOTEND_INDEX];
       

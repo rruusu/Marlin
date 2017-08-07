@@ -309,7 +309,7 @@
   #define  DEFAULT_L 0.25
   #define  DEFAULT_K 180
   #define  DEFAULT_epsilon 1.1
-  #define  DEFAULT_tau 20.0
+  #define  DEFAULT_tau 10.0
   #define  DEFAULT_T 8.0
   #define  DEFAULT_Q 2.5
   
