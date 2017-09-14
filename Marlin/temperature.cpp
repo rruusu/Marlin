@@ -623,8 +623,8 @@ float Temperature::get_pid_output(int e) {
       v2 = 1.1 * SM_PARAM(L, HOTEND_INDEX) * sign(v0);
       v3 = (z2[HOTEND_INDEX] - z1[HOTEND_INDEX])/SM_PARAM(T, HOTEND_INDEX);
       z1[HOTEND_INDEX] += PID_dT/16 * (v3 + z3[HOTEND_INDEX] - v1 - 0.5 * (PID_dT/16) * v2);
-      z2[HOTEND_INDEX] += PID_dT/16 * (SM_PARAM(Q, HOTEND_INDEX) * ueq[HOTEND_INDEX] / PID_MAX - v3 - 0.1 * SM_PARAM(T, HOTEND_INDEX) * v2);
-      z3[HOTEND_INDEX] -= PID_dT/16 * v2 * 0.9;
+      z2[HOTEND_INDEX] += PID_dT/16 * (SM_PARAM(Q, HOTEND_INDEX) * u[HOTEND_INDEX] / PID_MAX - v3);
+      z3[HOTEND_INDEX] -= PID_dT/16 * v2;
     }
     
     pid_error[HOTEND_INDEX] = z1[HOTEND_INDEX] - target_temperature[HOTEND_INDEX];
@@ -632,26 +632,40 @@ float Temperature::get_pid_output(int e) {
     if (pid_error[HOTEND_INDEX] < -PID_FUNCTIONAL_RANGE) {
       pid_output = BANG_MAX;
       veq[HOTEND_INDEX] = 0;
-      ueq[HOTEND_INDEX] = PID_MAX;
+      u[HOTEND_INDEX] = ueq[HOTEND_INDEX] = PID_MAX;
     }
     else if (pid_error[HOTEND_INDEX] > PID_FUNCTIONAL_RANGE || target_temperature[HOTEND_INDEX] == 0) {
       pid_output = 0;
       veq[HOTEND_INDEX] = 0;
-      ueq[HOTEND_INDEX] = 0;
+      u[HOTEND_INDEX] = ueq[HOTEND_INDEX] = 0;
     }
     else {
+      // Heating element-induced rate of change
       v3 = (z2[HOTEND_INDEX] - z1[HOTEND_INDEX]) / SM_PARAM(T, HOTEND_INDEX);
-      sigma2[HOTEND_INDEX] = SM_PARAM(tau, HOTEND_INDEX) * ((z2[HOTEND_INDEX] - z1[HOTEND_INDEX])/SM_PARAM(T, HOTEND_INDEX) + z3[HOTEND_INDEX]);
-      sigma[HOTEND_INDEX] = pid_error[HOTEND_INDEX] + sigma2[HOTEND_INDEX];
+      // Total rate of change
+      sigma2[HOTEND_INDEX] = v3 + z3[HOTEND_INDEX];
+      // Sliding mode variable
+      sigma[HOTEND_INDEX] = pid_error[HOTEND_INDEX] + SM_PARAM(tau, HOTEND_INDEX) * sigma2[HOTEND_INDEX];
+      // Dead band of width epsilon
       sigma[HOTEND_INDEX] -= max(-SM_PARAM(epsilon, HOTEND_INDEX), min(SM_PARAM(epsilon, HOTEND_INDEX), sigma[HOTEND_INDEX]));
-      sigma[HOTEND_INDEX] = sigma[HOTEND_INDEX] / (fabs(pid_error[HOTEND_INDEX]) + fabs(sigma2[HOTEND_INDEX]) + SM_PARAM(epsilon, HOTEND_INDEX));
-      u[HOTEND_INDEX] = -SM_PARAM(K, HOTEND_INDEX) * sigma[HOTEND_INDEX];
-      u[HOTEND_INDEX] += PID_MAX * (v3 - (v3 + z3[HOTEND_INDEX]) / tau) / SM_PARAM(Q, HOTEND_INDEX);
+
+      // Calculate equivalent control
+      if (sigma2[HOTEND_INDEX] * pid_error[HOTEND_INDEX] >= 0.0) {
+        // Error incrasing: Arrest deviation with time constant tau/2
+        ueq[HOTEND_INDEX] = v3 + sigma2[HOTEND_INDEX] * (1.0 - SM_PARAM(T, HOTEND_INDEX) / (SM_PARAM(tau, HOTEND_INDEX) / 2));
+      }
+      else {
+        // Error decreasing: Maintain current decay rate
+        ueq[HOTEND_INDEX] = v3 + sigma2[HOTEND_INDEX] * (1.0 - SM_PARAM(T, HOTEND_INDEX) * fabs(sigma2[HOTEND_INDEX]) / (fabs(pid_error[HOTEND_INDEX]) + SM_PARAM(epsilon, HOTEND_INDEX)));
+      }
+      // Scale to controller range
+      ueq[HOTEND_INDEX] *= PID_MAX / SM_PARAM(Q, HOTEND_INDEX);
+
+      // Total control output with tanh sigmoid
+      u[HOTEND_INDEX] = ueq[HOTEND_INDEX] - SM_PARAM(K, HOTEND_INDEX) * tanh(sigma[HOTEND_INDEX] / SM_PARAM(epsilon, HOTEND_INDEX));
       u[HOTEND_INDEX] = max(0, min(PID_MAX, u[HOTEND_INDEX]));
-      ueq[HOTEND_INDEX] += PID_dT * (u[HOTEND_INDEX] - ueq[HOTEND_INDEX]) / 0.125;
-      ueq[HOTEND_INDEX] = max(0, min(PID_MAX, ueq[HOTEND_INDEX]));
   
-      pid_output = ueq[HOTEND_INDEX];
+      pid_output = u[HOTEND_INDEX];
       
       if (pid_output > PID_MAX) {
         pid_output = PID_MAX;
