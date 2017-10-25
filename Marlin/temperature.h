@@ -334,6 +334,10 @@ class Temperature {
      * Call periodically to manage heaters
      */
     static void manage_heater() _O2; // Added _O2 to work around a compiler error
+    
+    #if ENABLED(SMTEMP)
+      static void update_observer(int e);
+    #endif
 
     /**
      * Preheating hotends
@@ -376,9 +380,9 @@ class Temperature {
         UNUSED(e);
       #endif
       #if ENABLED(SMTEMP)
-        return z1[HOTEND_INDEX] + 0.5f;
+        return z1[HOTEND_INDEX];
       #else
-        return current_temperature[HOTEND_INDEX] + 0.5f;
+        return current_temperature[HOTEND_INDEX];
       #endif
     }
     static int16_t decHotend(uint8_t e) {
