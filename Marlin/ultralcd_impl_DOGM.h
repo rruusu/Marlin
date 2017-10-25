@@ -707,7 +707,7 @@ static void lcd_implementation_status_screen() {
       lcd_print('E');
       lcd_print((char)('1' + active_extruder));
       lcd_print(' ');
-      lcd_print(itostr3(thermalManager.degHotend(active_extruder)));
+      lcd_print(itostr3(thermalManager.decHotend(active_extruder)));
       lcd_print('/');
 
       if (lcd_blink() || !thermalManager.is_heater_idle(active_extruder))
